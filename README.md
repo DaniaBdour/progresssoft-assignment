@@ -28,8 +28,59 @@ progresssoft-assignment/
 │   └── nginx-deployment.yaml
 ├── screenshots/
 │   └── (all screenshots here)
+├── all_commands.txt
 └── README.md
 ```
+
+---
+
+## Docker Hub Image
+
+**Image:** `daniaalbdour1/my-tomcat-app:1.0`  
+**Link:** https://hub.docker.com/r/daniaalbdour1/my-tomcat-app
+
+### Pull and Run
+
+```bash
+docker pull daniaalbdour1/my-tomcat-app:1.0
+docker run -d -p 8888:8080 --name myapp daniaalbdour1/my-tomcat-app:1.0
+```
+
+### Verify it is working
+
+```bash
+# Check container is running
+docker ps
+# Expected: myapp  STATUS=Up  0.0.0.0:8888->8080
+
+# Check logs — look for startup message
+docker logs myapp
+# Expected: INFO: Server startup in [XXX] milliseconds
+
+# Test the app responds
+curl http://localhost:8888
+# Expected: Hello from ProgressSoft!
+
+# Check HTTP status
+curl -I http://localhost:8888
+# Expected: HTTP/1.1 200 OK
+```
+
+Open browser: `http://localhost:8888`  
+Expected: page showing **Hello from ProgressSoft!**
+
+### Clean up
+```bash
+docker stop myapp
+docker rm myapp
+```
+
+---
+
+## All Commands Reference
+
+All commands used throughout this assignment are documented in `all_commands.txt` in this repository.  
+It covers every command for every section with exact syntax used on Ubuntu 24.04.
 
 ---
 
