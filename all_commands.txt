@@ -1,0 +1,1079 @@
+================================================================
+  PROGRESSSOFT ASSIGNMENT — ALL COMMANDS REFERENCE
+  Final version — exact commands used in this session
+================================================================
+
+
+================================================================
+  SECTION 1 — LINUX
+================================================================
+
+----------------------------------------------------------------
+1.1  SYSTEM UPDATE
+----------------------------------------------------------------
+sudo apt update
+sudo apt upgrade -y
+lsb_release -a
+hostname
+ip addr show
+hostname -I
+
+
+----------------------------------------------------------------
+1.2  CREATE AND RUN sysinfo.sh
+----------------------------------------------------------------
+nano ~/sysinfo.sh
+chmod +x ~/sysinfo.sh
+./sysinfo.sh
+bash ~/sysinfo.sh
+cat ~/sysinfo.sh
+ls -la ~/sysinfo.sh
+
+---- sysinfo.sh FULL SCRIPT ----
+#!/bin/bash
+EXEC_USER=$(whoami)
+HOSTNAME_VAL=$(hostname)
+SERVER_IP=$(hostname -I | awk '{print $1}')
+PUBLIC_IP=$(curl -s https://api.ipify.org 2>/dev/null || echo 'N/A')
+OS=$(lsb_release -d | cut -f2)
+KERNEL=$(uname -r)
+ARCH=$(uname -m)
+VIRT=$(systemd-detect-virt 2>/dev/null || echo 'unknown')
+SERVER_TIME=$(date '+%Y-%m-%d %H:%M:%S %Z')
+TIMEZONE=$(timedatectl | grep 'Time zone' | awk '{print $3}')
+UPTIME_VAL=$(uptime -p | sed 's/up //')
+TOTAL_MEM=$(free -h | awk '/^Mem:/ {print $2}')
+USED_MEM=$(free -h  | awk '/^Mem:/ {print $3}')
+SWAP_TOTAL=$(free -h | awk '/^Swap:/ {print $2}')
+SWAP_USED=$(free -h  | awk '/^Swap:/ {print $3}')
+CPU_CORES=$(nproc)
+DISK_TOTAL=$(df -h / | awk 'NR==2 {print $2}')
+DISK_USED=$(df -h /  | awk 'NR==2 {print $3}')
+DISK_FREE=$(df -h /  | awk 'NR==2 {print $4}')
+NET_IF=$(ip route | awk '/default/ {print $5}')
+GATEWAY=$(ip route | awk '/default/ {print $3}')
+
+echo '================================================='
+echo '         SYSTEM INFORMATION REPORT               '
+echo '================================================='
+echo "Executed By      : $EXEC_USER"
+echo "Hostname         : $HOSTNAME_VAL"
+echo "Local IP         : $SERVER_IP"
+echo "Public IP        : $PUBLIC_IP"
+echo "OS               : $OS"
+echo "Kernel Version   : $KERNEL"
+echo "Architecture     : $ARCH"
+echo "Virtualisation   : $VIRT"
+echo "Server Time      : $SERVER_TIME"
+echo "Timezone         : $TIMEZONE"
+echo "Uptime           : $UPTIME_VAL"
+echo '-------------------------------------------------'
+echo '         RESOURCE USAGE                          '
+echo '-------------------------------------------------'
+echo "Total RAM        : $TOTAL_MEM"
+echo "Used RAM         : $USED_MEM / $TOTAL_MEM"
+echo "Swap             : $SWAP_USED / $SWAP_TOTAL"
+echo "CPU Cores        : $CPU_CORES"
+echo "Disk Total       : $DISK_TOTAL"
+echo "Disk Used        : $DISK_USED  Free: $DISK_FREE"
+echo '-------------------------------------------------'
+echo '         NETWORK                                 '
+echo '-------------------------------------------------'
+echo "Network Interface: $NET_IF"
+echo "Default Gateway  : $GATEWAY"
+echo '================================================='
+---- END OF SCRIPT ----
+
+
+----------------------------------------------------------------
+1.3  CREATE USER PS
+----------------------------------------------------------------
+sudo groupadd PSgroup
+sudo groupadd dba
+grep 'PSgroup\|dba' /etc/group
+sudo useradd -g PSgroup -G dba -m -s /bin/bash PS
+sudo passwd PS
+id PS
+grep '^PS:' /etc/passwd
+su - PS
+whoami
+exit
+
+
+----------------------------------------------------------------
+1.4  CHANGE ROOT PASSWORD
+----------------------------------------------------------------
+sudo passwd root
+su - root
+whoami
+grep '^root:' /etc/shadow
+exit
+
+
+----------------------------------------------------------------
+1.5  INSTALL MYSQL AND HAPROXY
+----------------------------------------------------------------
+sudo apt update
+sudo apt install -y mysql-server
+sudo apt install -y haproxy
+sudo systemctl start mysql
+sudo systemctl enable mysql
+sudo systemctl start haproxy
+sudo systemctl enable haproxy
+sudo systemctl status mysql
+sudo systemctl status haproxy
+mysql --version
+sudo mysql -u root -e "SELECT VERSION(); SHOW DATABASES;"
+ss -tlnp | grep -E '3306|haproxy'
+sudo mysql_secure_installation
+
+
+----------------------------------------------------------------
+1.6  FIREWALL — ALLOW PORT 3306
+----------------------------------------------------------------
+
+-- UFW (Ubuntu) --
+sudo ufw status
+sudo ufw enable
+sudo ufw allow 22/tcp
+sudo ufw allow 3306/tcp
+sudo ufw allow 3306/udp
+sudo ufw reload
+sudo ufw status verbose
+ss -tlnp | grep 3306
+
+-- iptables (alternative) --
+sudo iptables -A INPUT -p tcp --dport 3306 -j ACCEPT
+sudo iptables -A INPUT -p udp --dport 3306 -j ACCEPT
+sudo apt install -y iptables-persistent
+sudo netfilter-persistent save
+sudo netfilter-persistent reload
+sudo iptables -L INPUT -n -v
+
+-- firewalld (CentOS/RHEL) --
+sudo systemctl start firewalld
+sudo systemctl enable firewalld
+sudo firewall-cmd --permanent --add-port=3306/tcp
+sudo firewall-cmd --permanent --add-port=3306/udp
+sudo firewall-cmd --reload
+sudo firewall-cmd --list-ports
+sudo firewall-cmd --state
+
+
+----------------------------------------------------------------
+1.7  FILE TRANSFER
+----------------------------------------------------------------
+
+-- SCP --
+scp /local/file.txt user@192.168.1.100:/remote/path/
+scp -r /local/folder/ user@192.168.1.100:/home/user/folder/
+scp user@192.168.1.100:/remote/file.txt /local/path/
+scp -P 2222 file.txt vagrant@127.0.0.1:/home/vagrant/
+
+-- SFTP --
+sftp user@192.168.1.100
+put file.txt
+get remote_file.txt
+ls
+exit
+
+-- rsync --
+rsync -avz file.txt user@192.168.1.100:/home/user/
+rsync -avz --progress /local/ user@192.168.1.100:/remote/
+rsync -avz --delete /local/ user@192.168.1.100:/remote/backup/
+rsync -avz --dry-run /local/ user@192.168.1.100:/remote/
+
+-- Vagrant shared folder --
+ls /vagrant/
+cp /vagrant/myfile.txt /home/vagrant/
+
+
+================================================================
+  SECTION 2 — SQL (ORACLE via Docker)
+================================================================
+
+----------------------------------------------------------------
+2.0  RUN ORACLE XE IN DOCKER
+----------------------------------------------------------------
+sudo usermod -aG docker $USER
+newgrp docker
+
+docker pull gvenzl/oracle-xe:21-slim
+
+docker run -d \
+  --name oracle-xe \
+  -e ORACLE_PASSWORD=Oracle123 \
+  -p 1521:1521 \
+  -v oracle-data:/opt/oracle/oradata \
+  gvenzl/oracle-xe:21-slim
+
+-- Watch logs until: DATABASE IS READY TO USE! --
+docker logs -f oracle-xe
+-- Press Ctrl+C when ready --
+
+-- Grant privileges to student user --
+docker exec -it oracle-xe sqlplus system/Oracle123@localhost/XE
+
+CREATE USER student IDENTIFIED BY Oracle123;
+GRANT CONNECT, RESOURCE, DBA TO student;
+GRANT CREATE TABLE TO student;
+GRANT DROP ANY TABLE TO student;
+GRANT UNLIMITED TABLESPACE TO student;
+EXIT;
+
+-- Connect as student --
+docker exec -it oracle-xe sqlplus student/Oracle123@localhost/XE
+
+
+----------------------------------------------------------------
+2.1  CREATE TABLES — tables.sql
+----------------------------------------------------------------
+nano ~/tables.sql
+docker cp ~/tables.sql oracle-xe:/tmp/tables.sql
+docker exec -it oracle-xe sqlplus student/Oracle123@localhost/XE @/tmp/tables.sql
+
+-- Verify --
+docker exec -it oracle-xe sqlplus student/Oracle123@localhost/XE
+SELECT table_name FROM user_tables ORDER BY table_name;
+SELECT * FROM MyEmployee;
+EXIT;
+
+---- FULL tables.sql SCRIPT ----
+CREATE TABLE Gender (
+  Gender_ID  NUMBER        PRIMARY KEY,
+  Name       VARCHAR2(20)  NOT NULL
+             CONSTRAINT ck_gender CHECK (Name IN ('Male','Female','Other'))
+);
+INSERT INTO Gender VALUES (1, 'Male');
+INSERT INTO Gender VALUES (2, 'Female');
+INSERT INTO Gender VALUES (3, 'Other');
+COMMIT;
+
+CREATE TABLE University (
+  ID    NUMBER         PRIMARY KEY,
+  Name  VARCHAR2(200)  NOT NULL UNIQUE
+);
+INSERT INTO University VALUES (1, 'University of Jordan');
+INSERT INTO University VALUES (2, 'Jordan University of Science and Technology');
+INSERT INTO University VALUES (3, 'German Jordanian University');
+COMMIT;
+
+CREATE TABLE MyDepartment (
+  Dept_ID  NUMBER         PRIMARY KEY,
+  Name     VARCHAR2(100)  NOT NULL UNIQUE
+);
+INSERT INTO MyDepartment VALUES (10, 'IT');
+INSERT INTO MyDepartment VALUES (20, 'HR');
+INSERT INTO MyDepartment VALUES (30, 'Finance');
+INSERT INTO MyDepartment VALUES (40, 'Sales');
+COMMIT;
+
+CREATE TABLE MyEmployee (
+  ID            NUMBER          PRIMARY KEY,
+  LAST_NAME     VARCHAR2(50)    NOT NULL,
+  FIRST_NAME    VARCHAR2(50)    NOT NULL,
+  HIRE_DATE     DATE            NOT NULL,
+  USERID        NUMBER          NOT NULL UNIQUE,
+  SALARY        NUMBER(10,2)    NOT NULL
+                CONSTRAINT ck_salary CHECK (SALARY > 0),
+  DEPT_ID       NUMBER,
+  Gender_ID     NUMBER,
+  University_ID NUMBER,
+  MANAGER_ID    NUMBER,
+  JOB_TITLE     VARCHAR2(100),
+  EMP_IMAGE     BLOB,
+  CONSTRAINT fk_emp_dept   FOREIGN KEY (DEPT_ID)       REFERENCES MyDepartment(Dept_ID),
+  CONSTRAINT fk_emp_gender FOREIGN KEY (Gender_ID)     REFERENCES Gender(Gender_ID),
+  CONSTRAINT fk_emp_univ   FOREIGN KEY (University_ID) REFERENCES University(ID),
+  CONSTRAINT fk_emp_mgr    FOREIGN KEY (MANAGER_ID)    REFERENCES MyEmployee(ID)
+);
+
+INSERT INTO MyEmployee
+  (ID,LAST_NAME,FIRST_NAME,HIRE_DATE,USERID,SALARY,DEPT_ID,Gender_ID,University_ID,JOB_TITLE)
+VALUES (1,'SCOTT','John',TO_DATE('09/09/1987','DD/MM/YYYY'),1001,5000,10,1,1,'Manager');
+
+INSERT INTO MyEmployee
+  (ID,LAST_NAME,FIRST_NAME,HIRE_DATE,USERID,SALARY,DEPT_ID,Gender_ID,University_ID,MANAGER_ID,JOB_TITLE)
+VALUES (2,'Ahmad','Ali',TO_DATE('10/10/1980','DD/MM/YYYY'),1002,2500,20,1,2,1,'HR Specialist');
+
+INSERT INTO MyEmployee
+  (ID,LAST_NAME,FIRST_NAME,HIRE_DATE,USERID,SALARY,DEPT_ID,Gender_ID,University_ID,MANAGER_ID,JOB_TITLE)
+VALUES (3,'Rami','Sami',TO_DATE('24/05/1986','DD/MM/YYYY'),1003,2800,10,1,1,1,'Engineer');
+
+INSERT INTO MyEmployee
+  (ID,LAST_NAME,FIRST_NAME,HIRE_DATE,USERID,SALARY,DEPT_ID,Gender_ID,University_ID,MANAGER_ID,JOB_TITLE)
+VALUES (4,'Khaled','Omar',TO_DATE('15/03/1990','DD/MM/YYYY'),1004,3200,30,1,3,1,'Financial Analyst');
+
+INSERT INTO MyEmployee
+  (ID,LAST_NAME,FIRST_NAME,HIRE_DATE,USERID,SALARY,DEPT_ID,Gender_ID,University_ID,MANAGER_ID,JOB_TITLE)
+VALUES (5,'Sara','Noor',TO_DATE('20/07/1995','DD/MM/YYYY'),1005,2200,40,2,2,1,'Sales Representative');
+
+INSERT INTO MyEmployee
+  (ID,LAST_NAME,FIRST_NAME,HIRE_DATE,USERID,SALARY,DEPT_ID,Gender_ID,University_ID,MANAGER_ID,JOB_TITLE)
+VALUES (6,'Lina','Hana',TO_DATE('11/02/1992','DD/MM/YYYY'),1006,3100,10,2,3,1,'Engineer');
+
+COMMIT;
+SELECT table_name FROM user_tables ORDER BY table_name;
+SELECT * FROM MyEmployee;
+---- END OF tables.sql ----
+
+
+----------------------------------------------------------------
+2.2  Q2 — q2.sql
+----------------------------------------------------------------
+cat > ~/q2.sql << 'EOF'
+SET LINESIZE 200
+SET PAGESIZE 50
+COLUMN "Employee ID"   FORMAT 99
+COLUMN "Employee Name" FORMAT A20
+COLUMN "Hire Date"     FORMAT A12
+COLUMN "Salary"        FORMAT 99999
+COLUMN "Job Title"     FORMAT A20
+COLUMN "Department"    FORMAT A12
+COLUMN "Manager"       FORMAT A20
+COLUMN "Gender"        FORMAT A8
+COLUMN "University"    FORMAT A35
+
+SELECT
+  e.ID                                    AS "Employee ID",
+  e.FIRST_NAME || ' ' || e.LAST_NAME     AS "Employee Name",
+  e.HIRE_DATE                             AS "Hire Date",
+  e.SALARY                                AS "Salary",
+  e.JOB_TITLE                             AS "Job Title",
+  d.Name                                  AS "Department",
+  m.FIRST_NAME || ' ' || m.LAST_NAME     AS "Manager",
+  g.Name                                  AS "Gender",
+  u.Name                                  AS "University"
+FROM      MyEmployee  e
+LEFT JOIN MyDepartment d  ON e.DEPT_ID       = d.Dept_ID
+LEFT JOIN MyEmployee   m  ON e.MANAGER_ID    = m.ID
+LEFT JOIN Gender       g  ON e.Gender_ID     = g.Gender_ID
+LEFT JOIN University   u  ON e.University_ID = u.ID
+ORDER BY e.ID;
+EOF
+
+docker cp ~/q2.sql oracle-xe:/tmp/q2.sql
+docker exec -it oracle-xe sqlplus student/Oracle123@localhost/XE @/tmp/q2.sql
+
+
+----------------------------------------------------------------
+2.3  Q3 — q3.sql
+----------------------------------------------------------------
+cat > ~/q3.sql << 'EOF'
+SELECT
+  JOB_TITLE                AS "Job Title",
+  COUNT(*)                 AS "Employee Count",
+  SUM(SALARY)              AS "Total Monthly Salary"
+FROM MyEmployee
+WHERE UPPER(JOB_TITLE) NOT LIKE '%SALES%'
+GROUP BY JOB_TITLE
+HAVING SUM(SALARY) > 2500
+ORDER BY SUM(SALARY) DESC;
+EOF
+
+docker cp ~/q3.sql oracle-xe:/tmp/q3.sql
+docker exec -it oracle-xe sqlplus student/Oracle123@localhost/XE @/tmp/q3.sql
+
+
+----------------------------------------------------------------
+2.4  Q4 — q4.sql
+----------------------------------------------------------------
+-- 4 errors in: SELECT empno, ename, salary x 12 ANNUAL SALARY; FROM emp;
+-- Error 1: x  should be  *
+-- Error 2: ANNUAL SALARY  should be  "ANNUAL SALARY"
+-- Error 3: semicolon before FROM  should be removed
+-- Error 4: missing comma after ename
+
+cat > ~/q4.sql << 'EOF'
+CREATE TABLE emp (
+  empno  NUMBER PRIMARY KEY,
+  ename  VARCHAR2(50),
+  salary NUMBER
+);
+INSERT INTO emp VALUES (1, 'SCOTT', 3000);
+INSERT INTO emp VALUES (2, 'JOHN',  2500);
+INSERT INTO emp VALUES (3, 'SARA',  4000);
+COMMIT;
+
+SELECT empno,
+       ename,
+       salary * 12 AS "ANNUAL SALARY"
+FROM emp;
+EOF
+
+docker cp ~/q4.sql oracle-xe:/tmp/q4.sql
+docker exec -it oracle-xe sqlplus student/Oracle123@localhost/XE @/tmp/q4.sql
+
+
+----------------------------------------------------------------
+2.5  Q5 — q5.sql
+----------------------------------------------------------------
+cat > ~/q5.sql << 'EOF'
+CREATE OR REPLACE FUNCTION F_HR_QUERY
+RETURN SYS_REFCURSOR
+IS
+  v_cursor      SYS_REFCURSOR;
+  v_scott_date  DATE;
+BEGIN
+  SELECT HIRE_DATE INTO v_scott_date
+  FROM   MyEmployee
+  WHERE  UPPER(LAST_NAME) = 'SCOTT'
+  AND    ROWNUM = 1;
+
+  OPEN v_cursor FOR
+    SELECT ID,
+           FIRST_NAME || ' ' || LAST_NAME  AS full_name,
+           HIRE_DATE,
+           JOB_TITLE
+    FROM MyEmployee
+    WHERE HIRE_DATE > v_scott_date;
+
+  RETURN v_cursor;
+
+EXCEPTION
+  WHEN NO_DATA_FOUND THEN
+    DBMS_OUTPUT.PUT_LINE('ERROR: SCOTT was not found in MyEmployee.');
+    RETURN NULL;
+  WHEN OTHERS THEN
+    DBMS_OUTPUT.PUT_LINE('ERROR: ' || SQLERRM);
+    RETURN NULL;
+END F_HR_QUERY;
+/
+
+SET SERVEROUTPUT ON
+DECLARE
+  v_cur       SYS_REFCURSOR;
+  v_id        NUMBER;
+  v_name      VARCHAR2(100);
+  v_hiredate  DATE;
+  v_job       VARCHAR2(100);
+BEGIN
+  v_cur := F_HR_QUERY();
+  LOOP
+    FETCH v_cur INTO v_id, v_name, v_hiredate, v_job;
+    EXIT WHEN v_cur%NOTFOUND;
+    DBMS_OUTPUT.PUT_LINE(
+      'ID=' || v_id || '  ' || v_name ||
+      '  Hired: ' || TO_CHAR(v_hiredate,'DD/MM/YYYY') ||
+      '  Job: ' || NVL(v_job,'N/A')
+    );
+  END LOOP;
+  CLOSE v_cur;
+END;
+/
+EOF
+
+docker cp ~/q5.sql oracle-xe:/tmp/q5.sql
+docker exec -it oracle-xe sqlplus student/Oracle123@localhost/XE @/tmp/q5.sql
+
+
+----------------------------------------------------------------
+2.6  Q6 — q6.sql
+----------------------------------------------------------------
+-- Grant privileges first --
+docker exec -it oracle-xe sqlplus system/Oracle123@localhost/XE
+GRANT CREATE TABLE TO student;
+GRANT DROP ANY TABLE TO student;
+GRANT UNLIMITED TABLESPACE TO student;
+EXIT;
+
+cat > ~/q6.sql << 'EOF'
+CREATE OR REPLACE PROCEDURE P_COPY_EMPLOYEE
+IS
+  v_count NUMBER;
+BEGIN
+  SELECT COUNT(*) INTO v_count
+  FROM user_tables
+  WHERE UPPER(table_name) = 'MYEMPLOYEE_UPDATE';
+
+  IF v_count > 0 THEN
+    EXECUTE IMMEDIATE 'DROP TABLE MyEmployee_update PURGE';
+    DBMS_OUTPUT.PUT_LINE('Old MyEmployee_update dropped.');
+  END IF;
+
+  EXECUTE IMMEDIATE
+    'CREATE TABLE MyEmployee_update AS SELECT * FROM MyEmployee';
+
+  EXECUTE IMMEDIATE
+    'SELECT COUNT(*) FROM MyEmployee_update'
+    INTO v_count;
+
+  DBMS_OUTPUT.PUT_LINE('P_COPY_EMPLOYEE complete. Rows copied: ' || TO_CHAR(v_count));
+
+EXCEPTION
+  WHEN OTHERS THEN
+    DBMS_OUTPUT.PUT_LINE('ERROR: ' || SQLERRM);
+END P_COPY_EMPLOYEE;
+/
+
+SET SERVEROUTPUT ON
+BEGIN
+  P_COPY_EMPLOYEE();
+END;
+/
+
+SELECT COUNT(*) AS rows_in_backup FROM MyEmployee_update;
+SELECT * FROM MyEmployee_update;
+EOF
+
+docker cp ~/q6.sql oracle-xe:/tmp/q6.sql
+docker exec -it oracle-xe sqlplus student/Oracle123@localhost/XE @/tmp/q6.sql
+
+
+================================================================
+  SECTION 3 — APACHE TOMCAT 9
+================================================================
+
+----------------------------------------------------------------
+3.1  INSTALL JAVA 8
+----------------------------------------------------------------
+sudo apt update
+sudo apt install -y openjdk-8-jdk
+java -version
+readlink -f $(which java)
+
+
+----------------------------------------------------------------
+3.2  DOWNLOAD AND INSTALL TOMCAT 9.0.115
+----------------------------------------------------------------
+cd /opt
+sudo wget https://archive.apache.org/dist/tomcat/tomcat-9/v9.0.115/bin/apache-tomcat-9.0.115.tar.gz
+ls -lh /opt/apache-tomcat-9.0.115.tar.gz
+sudo tar -xzf apache-tomcat-9.0.115.tar.gz
+sudo mv apache-tomcat-9.0.115 tomcat9
+sudo rm apache-tomcat-9.0.115.tar.gz
+ls -la /opt/tomcat9/
+sudo chmod +x /opt/tomcat9/bin/*.sh
+
+
+----------------------------------------------------------------
+3.3  CHANGE PORT FROM 8080 TO 7070
+----------------------------------------------------------------
+sudo sed -i 's/port="8080"/port="7070"/' /opt/tomcat9/conf/server.xml
+sudo grep 'Connector port' /opt/tomcat9/conf/server.xml
+
+
+----------------------------------------------------------------
+3.4  CREATE TOMCAT SYSTEMD SERVICE
+----------------------------------------------------------------
+sudo tee /etc/systemd/system/tomcat.service << 'EOF'
+[Unit]
+Description=Apache Tomcat 9 Web Application Server
+After=network.target
+
+[Service]
+Type=forking
+Environment="JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64"
+Environment="CATALINA_HOME=/opt/tomcat9"
+Environment="CATALINA_BASE=/opt/tomcat9"
+Environment="CATALINA_PID=/opt/tomcat9/temp/tomcat.pid"
+ExecStart=/opt/tomcat9/bin/startup.sh
+ExecStop=/opt/tomcat9/bin/shutdown.sh
+User=root
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl start tomcat
+sudo systemctl enable tomcat
+sudo systemctl status tomcat
+ss -tlnp | grep 7070
+curl -s http://localhost:7070 | head -20
+sudo tail -50 /opt/tomcat9/logs/catalina.out
+
+
+----------------------------------------------------------------
+3.5  STOP APACHE2 AND START NGINX REVERSE PROXY
+----------------------------------------------------------------
+sudo systemctl stop apache2
+sudo systemctl disable apache2
+
+sudo apt install -y nginx
+
+sudo tee /etc/nginx/sites-available/tomcat << 'EOF'
+server {
+    listen 80;
+    server_name myapp.local;
+
+    location / {
+        proxy_pass         http://localhost:7070;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_read_timeout 90s;
+        proxy_connect_timeout 90s;
+    }
+}
+EOF
+
+sudo ln -s /etc/nginx/sites-available/tomcat /etc/nginx/sites-enabled/
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo nginx -t
+sudo systemctl start nginx
+sudo systemctl restart nginx
+sudo systemctl enable nginx
+echo '127.0.0.1   myapp.local' | sudo tee -a /etc/hosts
+curl http://myapp.local
+sudo ufw allow 80/tcp
+sudo ufw allow 7070/tcp
+sudo ufw reload
+
+
+----------------------------------------------------------------
+3.6  VAGRANTFILE AND PROVISION.SH
+----------------------------------------------------------------
+mkdir -p ~/Section3_Tomcat
+cd ~/Section3_Tomcat
+
+cat > Vagrantfile << 'EOF'
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+
+  config.vm.box = "bento/ubuntu-24.04"
+  config.vm.hostname = "tomcat-server"
+
+  config.vm.network "forwarded_port", guest: 7070, host: 9090
+  config.vm.network "forwarded_port", guest: 80,   host: 8080
+  config.vm.network "private_network", ip: "192.168.56.20"
+
+  config.vm.provider "virtualbox" do |vb|
+    vb.name   = "ps-tomcat-server"
+    vb.memory = 2048
+    vb.cpus   = 2
+  end
+
+  config.vm.provision "shell", path: "provision.sh"
+
+end
+EOF
+
+cat > provision.sh << 'EOF'
+#!/bin/bash
+set -e
+
+TOMCAT_VER="9.0.115"
+TOMCAT_URL="https://archive.apache.org/dist/tomcat/tomcat-9/v${TOMCAT_VER}/bin/apache-tomcat-${TOMCAT_VER}.tar.gz"
+
+echo '>>> [1/7] Updating system packages...'
+apt-get update -y -q
+
+echo '>>> [2/7] Installing Java 8...'
+apt-get install -y openjdk-8-jdk curl wget
+JAVA_HOME_PATH=$(readlink -f /usr/bin/java | sed 's|/bin/java||')
+
+echo '>>> [3/7] Downloading Apache Tomcat '$TOMCAT_VER'...'
+cd /opt
+wget -q -O tomcat.tar.gz "$TOMCAT_URL"
+
+echo '>>> [4/7] Extracting and configuring Tomcat...'
+tar -xzf tomcat.tar.gz
+mv "apache-tomcat-${TOMCAT_VER}" tomcat9
+rm tomcat.tar.gz
+chmod +x /opt/tomcat9/bin/*.sh
+sed -i 's/port="8080"/port="7070"/' /opt/tomcat9/conf/server.xml
+
+echo '>>> [5/7] Creating Tomcat systemd service...'
+cat > /etc/systemd/system/tomcat.service << SVCEOF
+[Unit]
+Description=Apache Tomcat 9 Web Application Server
+After=network.target
+
+[Service]
+Type=forking
+Environment="JAVA_HOME=${JAVA_HOME_PATH}"
+Environment="CATALINA_HOME=/opt/tomcat9"
+Environment="CATALINA_BASE=/opt/tomcat9"
+ExecStart=/opt/tomcat9/bin/startup.sh
+ExecStop=/opt/tomcat9/bin/shutdown.sh
+User=root
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+SVCEOF
+
+systemctl daemon-reload
+systemctl start tomcat
+systemctl enable tomcat
+
+echo '>>> [6/7] Installing and configuring Nginx...'
+apt-get install -y nginx
+
+cat > /etc/nginx/sites-available/tomcat << 'NGINX'
+server {
+    listen 80;
+    server_name _;
+    location / {
+        proxy_pass       http://localhost:7070;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+NGINX
+
+ln -sf /etc/nginx/sites-available/tomcat /etc/nginx/sites-enabled/
+rm -f  /etc/nginx/sites-enabled/default
+nginx -t && systemctl restart nginx && systemctl enable nginx
+
+echo '>>> [7/7] Verifying...'
+ss -tlnp | grep -E '7070|:80'
+echo '======================================================'
+echo ' DONE! Tomcat on 7070, Nginx on 80'
+echo '======================================================'
+EOF
+
+ls -la ~/Section3_Tomcat/
+
+
+================================================================
+  SECTION 4 — DEVOPS
+================================================================
+
+----------------------------------------------------------------
+4.1  CREATE SAMPLE WAR FILE
+----------------------------------------------------------------
+mkdir -p ~/myapp/WEB-INF
+
+cat > ~/myapp/index.html << 'HTML'
+<html>
+  <head><title>ProgressSoft App</title></head>
+  <body><h1>Hello from ProgressSoft!</h1></body>
+</html>
+HTML
+
+cat > ~/myapp/WEB-INF/web.xml << 'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app xmlns="http://xmlns.jcp.org/xml/ns/javaee" version="3.1">
+  <display-name>ProgressSoft App</display-name>
+</web-app>
+XML
+
+cd ~/myapp
+jar -cvf ~/sample.war .
+cd ~
+jar -tf ~/sample.war
+ls -lh ~/sample.war
+
+
+----------------------------------------------------------------
+4.2  DOCKERFILE — BUILD, TEST, TAG, PUSH
+----------------------------------------------------------------
+mkdir -p ~/tomcat-docker
+cd ~/tomcat-docker
+cp ~/sample.war .
+
+cat > Dockerfile << 'EOF'
+FROM tomcat:9.0-jdk11-openjdk-slim
+RUN rm -rf /usr/local/tomcat/webapps/ROOT
+COPY sample.war /usr/local/tomcat/webapps/ROOT.war
+EXPOSE 8080
+CMD ["catalina.sh", "run"]
+EOF
+
+-- Build image --
+docker build -t my-tomcat-app:1.0 .
+docker images
+
+-- Test locally (port 8888 to avoid conflict with Tomcat on 7070) --
+docker run -d -p 8888:8080 --name tomcat-test my-tomcat-app:1.0
+docker ps
+curl http://localhost:8888
+docker logs tomcat-test
+docker stop tomcat-test
+docker rm tomcat-test
+
+-- Tag with your Docker Hub username --
+docker tag my-tomcat-app:1.0 YOURUSERNAME/my-tomcat-app:1.0
+
+-- Login and push --
+docker login
+docker push YOURUSERNAME/my-tomcat-app:1.0
+
+-- Verify by pulling and running --
+docker pull YOURUSERNAME/my-tomcat-app:1.0
+docker run -d -p 8888:8080 --name verify-test YOURUSERNAME/my-tomcat-app:1.0
+curl http://localhost:8888
+docker stop verify-test && docker rm verify-test
+
+-- Find your image on Docker Hub --
+-- Open browser: https://hub.docker.com/r/YOURUSERNAME/my-tomcat-app
+-- Or search: https://hub.docker.com/search?q=YOURUSERNAME
+
+
+----------------------------------------------------------------
+4.3  RUN NGINX AND POSTGRESQL CONTAINERS
+----------------------------------------------------------------
+-- Nginx (port 8090 to avoid conflict with system Nginx on 80) --
+docker run -d \
+  --name nginx-server \
+  -p 8090:80 \
+  nginx:latest
+
+docker ps
+curl http://localhost:8090
+
+docker exec -it nginx-server bash
+cat /etc/nginx/nginx.conf
+exit
+
+-- PostgreSQL --
+docker run -d \
+  --name postgres-db \
+  -e POSTGRES_USER=admin \
+  -e POSTGRES_PASSWORD=secret123 \
+  -e POSTGRES_DB=mydb \
+  -p 5432:5432 \
+  -v pgdata:/var/lib/postgresql/data \
+  postgres:15
+
+docker ps
+
+-- Test PostgreSQL --
+docker exec -it postgres-db psql -U admin -d mydb
+SELECT version();
+CREATE TABLE employees (id SERIAL PRIMARY KEY, name TEXT);
+INSERT INTO employees (name) VALUES ('ProgressSoft Student');
+SELECT * FROM employees;
+\dt
+\q
+
+-- Check logs and stats --
+docker logs nginx-server
+docker logs postgres-db
+docker stats --no-stream
+
+-- Stop and remove --
+docker stop nginx-server postgres-db
+docker rm nginx-server postgres-db
+docker volume ls
+docker volume rm pgdata
+
+
+----------------------------------------------------------------
+4.4  KUBERNETES — INSTALL K3S
+----------------------------------------------------------------
+curl -sfL https://get.k3s.io | sh -
+sudo systemctl status k3s
+sudo kubectl get nodes
+
+-- Set up kubectl without sudo --
+mkdir -p ~/.kube
+sudo cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
+sudo chown $USER:$USER ~/.kube/config
+export KUBECONFIG=~/.kube/config
+kubectl get nodes
+-- Should show: dania-linux  Ready  control-plane
+
+
+----------------------------------------------------------------
+4.5  KUBERNETES — DEPLOY, EXPOSE, SCALE
+----------------------------------------------------------------
+kubectl create deployment nginx-deploy --image=nginx:latest
+kubectl get deployments
+kubectl get pods
+
+kubectl expose deployment nginx-deploy --port=80 --type=NodePort
+kubectl get services
+
+-- If pods are Pending due to disk pressure taint --
+kubectl taint nodes dania-linux node.kubernetes.io/disk-pressure:NoSchedule-
+
+kubectl scale deployment nginx-deploy --replicas=3
+kubectl get pods
+kubectl get pods -o wide
+
+kubectl describe pod $(kubectl get pods -o name | head -1 | sed 's|pod/||')
+kubectl logs     $(kubectl get pods -o name | head -1 | sed 's|pod/||')
+
+-- Clean up evicted pods --
+kubectl delete pods --field-selector=status.phase=Failed -A
+
+kubectl delete deployment nginx-deploy
+kubectl delete service nginx-deploy
+
+
+----------------------------------------------------------------
+4.6  KUBERNETES — DEPLOY FROM YAML FILE
+----------------------------------------------------------------
+cat > ~/nginx-deployment.yaml << 'EOF'
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-yaml-deploy
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:latest
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-yaml-svc
+spec:
+  selector:
+    app: nginx
+  ports:
+  - port: 80
+    targetPort: 80
+    nodePort: 30080
+  type: NodePort
+EOF
+
+kubectl apply -f ~/nginx-deployment.yaml
+kubectl get all
+kubectl delete -f ~/nginx-deployment.yaml
+
+
+----------------------------------------------------------------
+4.7  GITHUB — SETUP AND UPLOAD
+----------------------------------------------------------------
+sudo apt install -y git
+git --version
+
+git config --global user.name  'Your Full Name'
+git config --global user.email 'your.email@example.com'
+git config --list
+
+-- Create folder structure --
+mkdir -p ~/progresssoft-assignment/Section1_Linux
+mkdir -p ~/progresssoft-assignment/Section2_SQL
+mkdir -p ~/progresssoft-assignment/Section3_Tomcat
+mkdir -p ~/progresssoft-assignment/Section4_DevOps
+
+-- Copy all files --
+cp ~/sysinfo.sh                      ~/progresssoft-assignment/Section1_Linux/
+cp ~/tables.sql                      ~/progresssoft-assignment/Section2_SQL/
+cp ~/q2.sql                          ~/progresssoft-assignment/Section2_SQL/
+cp ~/q3.sql                          ~/progresssoft-assignment/Section2_SQL/
+cp ~/q4.sql                          ~/progresssoft-assignment/Section2_SQL/
+cp ~/q5.sql                          ~/progresssoft-assignment/Section2_SQL/
+cp ~/q6.sql                          ~/progresssoft-assignment/Section2_SQL/
+cp ~/Section3_Tomcat/Vagrantfile     ~/progresssoft-assignment/Section3_Tomcat/
+cp ~/Section3_Tomcat/provision.sh    ~/progresssoft-assignment/Section3_Tomcat/
+cp ~/tomcat-docker/Dockerfile        ~/progresssoft-assignment/Section4_DevOps/
+cp ~/nginx-deployment.yaml           ~/progresssoft-assignment/Section4_DevOps/
+
+-- Verify all files --
+find ~/progresssoft-assignment -type f
+
+-- Push to GitHub --
+cd ~/progresssoft-assignment
+git init
+git add .
+git status
+git commit -m 'Initial commit: all assignment sections'
+git remote add origin https://github.com/
+git branch -M main
+git push -u origin main
+
+-- Future updates --
+git add .
+git commit -m 'Describe what changed'
+git push origin main
+
+-- Download --
+git pull origin main
+git log --oneline
+git clone https://github.com/
+
+
+================================================================
+  GENERAL LINUX COMMANDS REFERENCE
+================================================================
+
+-- File operations --
+ls -la
+cd /path/to/dir
+pwd
+cp source dest
+cp -r folder/ dest/
+mv source dest
+rm filename
+rm -rf folder/
+mkdir -p parent/child
+cat filename
+nano filename
+tail -f logfile
+grep 'pattern' filename
+find / -name 'filename'
+
+-- Permissions --
+chmod +x file
+chmod 755 file
+chmod 644 file
+chown user:group file
+
+-- Disk --
+df -h /
+du -h / --max-depth=2 | sort -rh | head -20
+lsblk
+sudo fdisk -l
+sudo mkdir -p /mnt/data
+sudo mount /dev/sdb5 /mnt/data
+
+-- Process management --
+ps aux
+ps aux | grep process
+top
+kill -9 PID
+
+-- Network --
+ip addr show
+ip route
+ping 8.8.8.8
+ss -tlnp
+ss -tlnp | grep PORT
+curl http://url
+wget http://url
+
+-- Services --
+sudo systemctl start    SERVICE
+sudo systemctl stop     SERVICE
+sudo systemctl restart  SERVICE
+sudo systemctl status   SERVICE
+sudo systemctl enable   SERVICE
+sudo systemctl disable  SERVICE
+sudo journalctl -u SERVICE -f
+
+-- Package management --
+sudo apt update
+sudo apt install -y package
+sudo apt remove package
+sudo apt autoremove
+sudo apt-get clean
+dpkg -l | grep name
+
+-- Docker quick reference --
+docker ps
+docker ps -a
+docker images
+docker logs CONTAINER
+docker exec -it CONTAINER bash
+docker stop CONTAINER
+docker rm CONTAINER
+docker rmi IMAGE
+docker system prune -a
+docker volume ls
+docker cp file CONTAINER:/path/
+
+================================================================
+  END OF FILE
+================================================================
