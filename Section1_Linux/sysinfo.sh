@@ -38,11 +38,11 @@ USED_MEM=$(free -h  | awk '/^Mem:/ {print $3}')
 SWAP_TOTAL=$(free -h | awk '/^Swap:/ {print $2}')
 SWAP_USED=$(free -h  | awk '/^Swap:/ {print $3}')
 CPU_CORES=$(nproc)
-DISK_TOTAL=$(df -h / | awk 'NR==2 {print $2}')
-DISK_USED=$(df -h /  | awk 'NR==2 {print $3}')
-DISK_FREE=$(df -h /  | awk 'NR==2 {print $4}')
-NET_IF=$(ip route | awk '/default/ {print $5}')
-GATEWAY=$(ip route | awk '/default/ {print $3}')
+# DISK_TOTAL=$(df -h / | awk 'NR==2 {print $2}')
+# DISK_USED=$(df -h /  | awk 'NR==2 {print $3}')
+# DISK_FREE=$(df -h /  | awk 'NR==2 {print $4}')
+# NET_IF=$(ip route | awk '/default/ {print $5}')
+# GATEWAY=$(ip route | awk '/default/ {print $3}')
  
 echo '================================================='
 echo '         SYSTEM INFORMATION REPORT               '
@@ -65,13 +65,13 @@ echo "Total RAM        : $TOTAL_MEM"
 echo "Used RAM         : $USED_MEM / $TOTAL_MEM"
 echo "Swap             : $SWAP_USED / $SWAP_TOTAL"
 echo "CPU Cores        : $CPU_CORES"
-echo "Disk Total       : $DISK_TOTAL"
-echo "Disk Used        : $DISK_USED  Free: $DISK_FREE"
-echo '-------------------------------------------------'
-echo '         NETWORK                                 '
-echo '-------------------------------------------------'
-echo "Network Interface: $NET_IF"
-echo "Default Gateway  : $GATEWAY"
+# echo "Disk Total       : $DISK_TOTAL"
+# echo "Disk Used        : $DISK_USED  Free: $DISK_FREE"
+# echo '-------------------------------------------------'
+# echo '         NETWORK                                 '
+# echo '-------------------------------------------------'
+# echo "Network Interface: $NET_IF"
+# echo "Default Gateway  : $GATEWAY"
 echo '================================================='
 ---- END OF SCRIPT ----
  
