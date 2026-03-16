@@ -115,8 +115,7 @@ sudo systemctl status mysql
 sudo systemctl status haproxy
 mysql --version
 sudo mysql -u root -e "SELECT VERSION(); SHOW DATABASES;"
-ss -tlnp | grep -E '3306|haproxy'
-sudo mysql_secure_installation
+
  
  
 ----------------------------------------------------------------
